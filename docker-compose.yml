@@ -1,0 +1,54 @@
+services:
+  elasticsearch:
+    image: opensearchproject/opensearch:2.18.0
+    volumes:
+      - esdata:/usr/share/opensearch/data
+    environment:
+      - bootstrap.memory_lock=true
+      - discovery.type=single-node
+      - plugins.security.disabled=true
+      - thread_pool.search.queue_size=5000
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
+      - "OPENSEARCH_JAVA_OPTS=-Xms${ELASTIC_MEMORY_SIZE} -Xmx${ELASTIC_MEMORY_SIZE}"
+    restart: always
+    ports:
+      - 127.0.0.1:9200:9200
+    healthcheck:
+      test: curl --write-out 'HTTP %{http_code}' --fail --silent --output /dev/null http://localhost:9200/ || exit 1
+      retries: 5
+      timeout: 10s
+      start_interval: 30s
+      start_period: 5m
+      interval: 10s
+  capture-viewer:
+    image: ghcr.io/arkime/arkime/arkime:v5-latest
+    command: /opt/arkime/bin/docker.sh capture-viewer --update-geo -s -R ${PCAP_LINK} --host ${VIEWER_HOSTNAME}
+    environment:
+      ARKIME__elasticsearch: http://admin:${OPENSEARCH_INITIAL_ADMIN_PASSWORD}@elasticsearch:9200
+      ARKIME__arkimeWebURL: ${VIEWER_HOSTNAME}:8005
+    volumes:
+      - ./raw:/opt/arkime/raw
+      - ./etc:/opt/arkime/etc
+    restart: always
+    ports:
+      - 127.0.0.1:8005:8005
+    depends_on:
+      initdb:
+        condition: service_completed_successfully
+  initdb:
+    image: ghcr.io/arkime/arkime/arkime:v5-latest
+    entrypoint: /bin/sh /initdb.sh
+    environment:
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
+      VIEWER_ADMIN_USERNAME: ${ARKIME_ADMIN_USERNAME:-admin}
+      VIEWER_ADMIN_PASSWORD: ${ARKIME_ADMIN_PASSWORD:-admin}
+      ARKIME__elasticsearch: http://admin:${OPENSEARCH_INITIAL_ADMIN_PASSWORD}@elasticsearch:9200
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./initdb.sh:/initdb.sh:ro
+      - ./etc:/opt/arkime/etc
+
+volumes:
+  esdata:
