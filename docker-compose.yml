@@ -31,7 +31,7 @@ services:
       - ./etc:/opt/arkime/etc
     restart: always
     ports:
-      - 127.0.0.1:8005:8005
+      - :8005:8005
     depends_on:
       initdb:
         condition: service_completed_successfully
