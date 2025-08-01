@@ -22,7 +22,7 @@ services:
       interval: 10s
   capture-viewer:
     image: ghcr.io/arkime/arkime/arkime:v5-latest
-    network_mode: host  # 共享宿主机网络
+    network_mode: host  # Share Host Network      
     command: /opt/arkime/bin/docker.sh capture-viewer --update-geo -s -R ${INTERFACE} --host ${VIEWER_HOSTNAME}
     environment:
       ARKIME__elasticsearch: http://admin:${OPENSEARCH_INITIAL_ADMIN_PASSWORD}@elasticsearch:9200
