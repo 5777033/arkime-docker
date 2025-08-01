@@ -23,7 +23,7 @@ services:
   capture-viewer:
     image: ghcr.io/arkime/arkime/arkime:v5-latest
     network_mode: host  # 共享宿主机网络
-    command: /opt/arkime/bin/docker.sh capture-viewer --update-geo -s -R ${PCAP_LINK} --host ${VIEWER_HOSTNAME}
+    command: /opt/arkime/bin/docker.sh capture-viewer --update-geo -s -R ${INTERFACE} --host ${VIEWER_HOSTNAME}
     environment:
       ARKIME__elasticsearch: http://admin:${OPENSEARCH_INITIAL_ADMIN_PASSWORD}@elasticsearch:9200
       ARKIME__arkimeWebURL: ${VIEWER_HOSTNAME}:8005
@@ -31,8 +31,6 @@ services:
       - ./raw:/opt/arkime/raw
       - ./etc:/opt/arkime/etc
     restart: always
-    ports:
-      - :8005:8005
     depends_on:
       initdb:
         condition: service_completed_successfully
