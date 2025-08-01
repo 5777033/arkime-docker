@@ -30,6 +30,8 @@ services:
     volumes:
       - ./raw:/opt/arkime/raw
       - ./etc:/opt/arkime/etc
+    cap_add:
+      - NET_ADMIN
     restart: always
     depends_on:
       initdb:
