@@ -32,6 +32,7 @@ services:
       - ./etc:/opt/arkime/etc
     cap_add:
       - NET_ADMIN
+      - NET_RAW
     restart: always
     depends_on:
       initdb:
