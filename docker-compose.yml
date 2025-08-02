@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   elasticsearch:
     image: opensearchproject/opensearch:2.18.0
@@ -12,7 +14,8 @@ services:
       - "OPENSEARCH_JAVA_OPTS=-Xms${ELASTIC_MEMORY_SIZE} -Xmx${ELASTIC_MEMORY_SIZE}"
     restart: always
     ports:
-      - 127.0.0.1:9200:9200
+      - 9200:9200
+        #- 127.0.0.1:9200:9200
     healthcheck:
       test: curl --write-out 'HTTP %{http_code}' --fail --silent --output /dev/null http://localhost:9200/ || exit 1
       retries: 5
@@ -20,34 +23,55 @@ services:
       start_interval: 30s
       start_period: 5m
       interval: 10s
-  capture-viewer:
+
+  capture:
     image: ghcr.io/arkime/arkime/arkime:v5-latest
-    network_mode: host  # Share Host Network      
-    command: /opt/arkime/bin/docker.sh capture-viewer --update-geo -s -R ${INTERFACE} --host ${VIEWER_HOSTNAME}
+    container_name: arkime-capture
+    network_mode: "host"           # 必须host模式，抓宿主机ens33流量
+    command: /opt/arkime/bin/docker.sh capture --update-geo -s
+    privileged: true
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
     environment:
-      ARKIME__elasticsearch: http://admin:${OPENSEARCH_INITIAL_ADMIN_PASSWORD}@elasticsearch:9200
-      ARKIME__arkimeWebURL: ${VIEWER_HOSTNAME}:8005
+      ARKIME__elasticsearch: http://admin:${OPENSEARCH_INITIAL_ADMIN_PASSWORD}@localhost:9200
     volumes:
       - ./raw:/opt/arkime/raw
       - ./etc:/opt/arkime/etc
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
     restart: always
     depends_on:
-      initdb:
-        condition: service_completed_successfully
+      - elasticsearch
+
+  viewer:
+    image: ghcr.io/arkime/arkime/arkime:v5-latest
+    container_name: arkime-viewer
+    ports:
+      - "8005:8005"
+    command: /opt/arkime/bin/docker.sh viewer
+    environment:
+      ARKIME__elasticsearch: http://admin:${OPENSEARCH_INITIAL_ADMIN_PASSWORD}@elasticsearch:9200
+      ARKIME__arkimeWebURL: http://${VIEWER_HOSTNAME}:8005
+    volumes:
+      - ./raw:/opt/arkime/raw
+      - ./etc:/opt/arkime/etc
+    restart: always
+    depends_on:
+      - elasticsearch
+      - capture
+
   initdb:
     image: ghcr.io/arkime/arkime/arkime:v5-latest
-    entrypoint: /bin/sh /initdb.sh
+    container_name: arkime-initdb
+    entrypoint: /bin/sh -c "sleep 10 && /initdb.sh"
     environment:
       OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
-      VIEWER_ADMIN_USERNAME: ${ARKIME_ADMIN_USERNAME:-admin}
-      VIEWER_ADMIN_PASSWORD: ${ARKIME_ADMIN_PASSWORD:-admin}
+      VIEWER_ADMIN_USERNAME: ${VIEWER_ADMIN_USERNAME:-admin}
+      VIEWER_ADMIN_PASSWORD: ${VIEWER_ADMIN_PASSWORD:-admin}
       ARKIME__elasticsearch: http://admin:${OPENSEARCH_INITIAL_ADMIN_PASSWORD}@elasticsearch:9200
     depends_on:
-      elasticsearch:
-        condition: service_healthy
+      - elasticsearch
+      - capture
+      - viewer
     volumes:
       - ./initdb.sh:/initdb.sh:ro
       - ./etc:/opt/arkime/etc
